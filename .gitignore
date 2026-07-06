@@ -1,0 +1,12 @@
+pycache/
+*.pyc
+.venv/
+*.egg-info/
+dist/
+build/
+.vscode/settings.json
+.env
+*.key
+*.wav
+*.mp3
+.DS_Store
