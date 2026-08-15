@@ -134,8 +134,8 @@
     
     - [x] Project scaffold (pyproject.toml, src/somi/, hatchling build)
     - [x] Wake word detection (wake.py — sounddevice + pvporcupine)
-    - [ ] Capture with silence detection (VAD)
-    - [ ] STT (stt.py — faster-whisper)
+    - [x] Capture with silence detection (VAD)
+    - [x] STT (stt.py — faster-whisper)
     - [ ] LLM client (llm.py — local + api toggle)
     - [ ] TTS (tts/ — local + remote toggle)
     - [ ] Orchestrator (main.py — wire the loop)

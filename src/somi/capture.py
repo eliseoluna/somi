@@ -34,6 +34,7 @@ def record_until_silence(threshold_db=-40.0, silence_sec=0.7, max_sec=20.0):
 
     return np.concatenate(chunks)
 
+# Test block
 if __name__ == "__main__":
     audio = record_until_silence()
     print(f"Captured {len(audio) / SAMPLE_RATE:.1f} seconds")
