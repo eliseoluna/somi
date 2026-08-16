@@ -1,52 +1,50 @@
-""""Wake word detection for Somi using Porcupine."""
+""""Wake word detection for Somi using openWakeWord."""
 
-import struct
-import pvporcupine
+import numpy as np
 import sounddevice as sd
+from openwakeword.model import Model
+
+FRAME = 1280        # 80ms at 16kHz - openWakeWord's native frame size
+THRESHOLD = 0.5
 
 def listen_for_wake_word(
-        access_key: str,
-        keyword_path: str | None = None,
-        sensitivity: float = 0.7,
+        wake_word: str = "hey_jarvis",
+        threshold: float = THRESHOLD,
 ) -> None:
     """
-    Blocks until the wake word is detected.
+    Blocks untile the wake word is detected.
 
     Args:
-        access_key: Free Picovoice key from picovoice.ai (sign up, copy from console)
-        keyword_path: Path to custom wake word .ppn file, or None for built-in
-        sensitivity: 0.0 to 1.0 - higher = more sensitive, more false positive
+        wake_word: Name of a built-in wake word model (e.g. "hey_jarvis",
+                    "hey_mycroft", "alexa") or path to a custom .tflite/.onnx model
+        threshold: Detection score 0.0. to 1.0, higher = fewer false positives
     """
-    # Step 1: create the wake word detector
-    if keyword_path:
-        porcupine = pvporcupine.create(
-            access_key=access_key,
-            keyword_paths=[keyword_path],
-            sensitivities=[sensitivity],
-        )
-    else:
-        # Fall back to built-in "Porcupine" wake word for testing
-        porcupine = pvporcupine.create(
-            access_key=access_key,
-            keywords=["porcupine"],
-            sensitivities=[sensitivity],
-        )
+    model = Model(
+        wakeword_models=[wake_word],
+        inference_framework="onnx",
+    )
 
-    # Step 2: open the microphone
     stream = sd.RawInputStream(
         channels=1,
-        samplerate=porcupine.sample_rate,
+        samplerate=16000,
         dtype="int16",
-        blocksize=porcupine.frame_length,
+        blocksize=FRAME,
     )
 
     print("Listening for wake word...")
 
     with stream:
         while True:
-            data, _ = stream.read(porcupine.frame_length)
-            pcm = struct.unpack_from("h" * porcupine.frame_length, data)
+            data, _ = stream.read(FRAME)
+            frame = np.frombuffer(data, dtype=np.int16)
 
-            if porcupine.process(pcm) >= 0:
-                print("Wake word detected!")
+            prediction = model.predict(frame)
+            score = prediction[wake_word]
+
+            if score >= threshold:
+                print(f"Wake word detected! (score {score:.2f})")
                 return
+
+# Test block
+if __name__ == "__main__":
+    listen_for_wake_word()

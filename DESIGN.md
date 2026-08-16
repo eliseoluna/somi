@@ -33,7 +33,7 @@
     
     init()                              # load wake word, STT, TTS models; build LLM client
     loop:
-        wait_for_wake_word()            # SLEEP  — Porcupine blocks until "Hey Somi"
+        wait_for_wake_word()            # SLEEP  — openWakeWord blocks until "Hey Somi"
         audio = record_until_silence()  # LISTEN — capture with VAD endpoint detection
         text = stt(audio)               # THINK  — faster-whisper, local CPU
         response = llm(text)            # THINK  — local Titan OR cloud API (toggle)
@@ -48,13 +48,13 @@
     
     | Stage     | Implementation      | Default location | Notes                                     |
     |-----------|---------------------|------------------|-------------------------------------------|
-    | Wake word | Porcupine           | Desktop          | Mic latency is critical; tiny footprint   |
+    | Wake word | openWakeWord           | Desktop          | Mic latency is critical; tiny footprint   |
     | Capture   | sounddevice + VAD   | Desktop          | Mic access must be local                  |
     | STT       | faster-whisper      | Desktop          | CTranslate2 backend, fast on CPU, no GPU  |
     | LLM       | llama-server (HTTP) | LLM Box          | GPU that fits the LLM of choice           |
     | LLM (alt) | cloud API           | —                | DeepSeek/OpenAI/etc. via same HTTP client |
-    | TTS       | Qwen3-TTS           | Desktop (CPU)    | Latency-sensitive; default local          |
-    | TTS (alt) | Qwen3-TTS           | LLM Box (CPU)    | Edge-case offload when desktop is busy    |
+    | TTS       | Qwen3-TTS           | LLM BOX (TITAN)    | Latency-sensitive; default local          |
+    | TTS (alt) | Qwen3-TTS           | Desktop (CPU)    | Edge-case offload when desktop is busy    |
     | Vision    | Florence-2          | Desktop          | Planned — screen awareness, not started   |
     
     The Two Toggles
@@ -100,8 +100,8 @@
     
     | Variable           | Purpose                               | Default                  |
     |--------------------|---------------------------------------|--------------------------|
-    | SOMI_PICOVOICE_KEY | Porcupine access key (picovoice.ai)   | — (required)             |
-    | SOMI_WAKE_KEYWORD  | Path to custom .ppn, or built-in name | porcupine                |
+    | SOMI_PICOVOICE_KEY | openWakeWord                          | — (required)             |
+    | SOMI_WAKE_KEYWORD  | Path to custom .ppn, or built-in name | openWakeWord                |
     | SOMI_LLM_BACKEND   | local or api                          | local                    |
     | SOMI_LLM_BASE_URL  | OpenAI-compatible endpoint            | http://<llm-box>:8080/v1 |
     | SOMI_LLM_API_KEY   | Cloud API key (only when backend=api) | —                        |
@@ -114,7 +114,7 @@
     
     Decision Log
     
-    - Porcupine for wake word — local, low-latency, small footprint, free-tier key.
+    - openWakeWord for wake word — local, low-latency, small footprint, free-tier key.
       Custom wake word ("Hey Somi") via a .ppn file; built-in fallback for testing.
     - faster-whisper for STT — CTranslate2 backend is much faster on CPU than
       stock Whisper; no GPU required, so it stays on the desktop.
@@ -133,7 +133,7 @@
     Current Status
     
     - [x] Project scaffold (pyproject.toml, src/somi/, hatchling build)
-    - [x] Wake word detection (wake.py — sounddevice + pvporcupine)
+    - [x] Wake word detection (wake.py — sounddevice + openWakeWord)
     - [x] Capture with silence detection (VAD)
     - [x] STT (stt.py — faster-whisper)
     - [ ] LLM client (llm.py — local + api toggle)
