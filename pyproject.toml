@@ -13,6 +13,7 @@ dependencies = [
     "torch>=2.3",
     "transformers>=4.45",
     "accelerate>=0.30",
+    "soundfile>=0.12",
 ]
 
 [project.scripts]

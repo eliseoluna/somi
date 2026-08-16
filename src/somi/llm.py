@@ -19,6 +19,12 @@ def get_llm_client() -> OpenAI:
         api_key="not-needed",           # llama-server ignores it, but openai lib wants one
     )
 
+SYSTEM_PROMPT = (
+    "You are Somi, a voice assistant. Respond in plain spoken English, "
+    "no more than 2-3 sentences. No markdown, no emoji, no LaTex, no "
+    "bullet points, no symbols or special characters - only words exactly "
+    "as they would be spoken aloud."
+)
 
 def chat(text: str, client: OpenAI | None = None) -> str:
     client = client or get_llm_client()
@@ -26,7 +32,9 @@ def chat(text: str, client: OpenAI | None = None) -> str:
 
     response = client.chat.completions.create(
         model=model,
-        messages=[{"role": "user", "content": text}],
+        messages=[{"role": "system", "content": SYSTEM_PROMPT},
+                  {"role": "user", "content": text},
+        ],
     )
     return response.choices[0].message.content
 

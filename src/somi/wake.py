@@ -12,12 +12,12 @@ def listen_for_wake_word(
         threshold: float = THRESHOLD,
 ) -> None:
     """
-    Blocks untile the wake word is detected.
+    Blocks until the wake word is detected.
 
     Args:
         wake_word: Name of a built-in wake word model (e.g. "hey_jarvis",
                     "hey_mycroft", "alexa") or path to a custom .tflite/.onnx model
-        threshold: Detection score 0.0. to 1.0, higher = fewer false positives
+        threshold: Detection score 0.0 to 1.0, higher = fewer false positives
     """
     model = Model(
         wakeword_models=[wake_word],

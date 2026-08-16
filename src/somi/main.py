@@ -5,6 +5,13 @@ from somi.llm import chat
 from somi.stt import load_model as load_stt, transcribe
 from somi.tts import get_tts_backend
 from somi.play import play
+from somi.wake import listen_for_wake_word
+import re
+
+def sanitize_for_speech(text: str) -> str:
+    text = re.sub(r"[^\w\s.,!?;:'\"\-]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 
 def main() -> None:
@@ -15,8 +22,6 @@ def main() -> None:
 
     while True:
         # SLEEP - wait for wake word
-        from somi.wake import listen_for_wake_word
-        import os
         listen_for_wake_word()          # defaults to "hey_jarvis", no key needed
 
         # LISTEN
@@ -25,7 +30,7 @@ def main() -> None:
         # THINK
         text = transcribe(audio)
         print(f"heard: {text}")
-        response = chat(text)
+        response = sanitize_for_speech(chat(text))
         print(f"response: {response}")
 
         # SPEAK
