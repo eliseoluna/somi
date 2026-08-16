@@ -1,0 +1,19 @@
+# Runs on the personal LLM box (RTX Titan). The absolute paths below are specific to this machine
+# anyone deploying elsewhere should adjust
+# User, WorkingDirectory, and ExecStart to match their box.
+
+[Unit]
+Description=Somi TTS server (Qwen3-TTS 0.6B)
+After=network.target
+
+[Service]
+Type=simple
+User=llmbox
+WorkingDirectory=/home/llmbox
+ExecStart=/home/llmbox/tts-venv/bin/python -m uvicorn tts_server:app --host 0.0.0.0 --port 8081
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
