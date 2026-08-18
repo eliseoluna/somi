@@ -142,5 +142,56 @@ Current Status
 - [x] LLM client (llm.py — local + api toggle)
 - [x] TTS (tts/ — remote default + local fallback)
 - [x] Orchestrator (main.py — full loop with sanitize step)
+- [ ] Conversation memory (multi-turn context in llm.py)
+- [ ] Custom "hey somi" wake word
+- [ ] Settings GUI (config form - PySide6)
 - [ ] Vision (Florence-2)
 
+GUI Vision (brainstorm)
+
+Voice-first stays the identity. The GUY is bolt-on usefulness, not a takeover - Somi speaks and
+listends first; the visual layer surfaces state and adds a few things that are genuinely easer with
+a screen.
+
+Three distinct layers, kept separate on purpose:
+
+1. Widget shell - the windwos itself. Effort: medium.
+2. Intent routing - weather/calendar skip the LLM. Effort: small but smart.
+3. Agent layer - chat box, file generation, sandbox. Effort: large + security.
+
+The Widget (layer 1)
+
+- Circular, resizable in fixed increments via +/- buttons (browser-zoom style).
+- Always-on-top, movable, but click through is NOT required - a normal windows is
+  acceptable if input passthrough fights wayland.
+- Visual states mirror the pipeline: listening / thinking / speaking / looking. (This already
+  exists as prints in main.py; it's just a state machine + colors.)
+- Radial toggles extend out from the circle (bottom-left, bottom-right, etc.):
+  - a ~720px vertical chat box (type instead of talk)
+  - calendar button
+  - settings button
+- When the chat box is open, a file section shows files Somi has created.
+
+Intent routing (layer 2)
+
+Weather and calendar lookups should NOT hit the LLM - they're deterministic fetches, and generating
+a sentence about the forecast is wasteful. Flow:
+
+    STT -> intent classifier -> [weather tool | calendar tool | LLM]
+
+Slot extraction ("tomorrow in Dothan") may still need a cheap local parse, but the expensive
+generation is skipped. Google calendar sync is the calendar source (OAuth + token handling - 
+real integration work, deferred)
+
+Agent layer (layer 3)
+
+Letting the LLM write files turns Somi from assitant into agent. "Conatined" means a sandbox: a
+dedicated directory, a permission model, and ideally an approve-before-write step. Ship the chat
+box WITHOUT file generation first; add the sandbox as its own sub-project.
+
+Open questions / deferred
+- Wayland click-through: not set in stone. If input-passthrough is painful, a plain always-on-top
+windows is fine. Test early witha PySide6 prototype.
+- Toolkit: PySide6 assumed (Python-native, matches the sounddevice audio stack), but confirmed
+only when the widget prototype runs.
+- Is the circle a widget or window? Deferred until the click-through test.
