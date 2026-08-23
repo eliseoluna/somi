@@ -1,4 +1,4 @@
-S    Somi — Design
+    Somi — Design
     
     Voice-first AI companion. Runs fully local by default, with optional cloud-LLM
     fallback. This document captures the architecture, flow, and the decisions that
@@ -55,6 +55,7 @@ S    Somi — Design
     | STT       | faster-whisper       | Desktop          | CTranslate2 backend, fast on CPU, no GPU  |
     | LLM       | llama-server (HTTP)  | LLM Box          | GPU that fits the LLM of choice           |
     | LLM (alt) | cloud API            | —                | DeepSeek/OpenAI/etc. via same HTTP client |
+    | LLM (alt) | llama-server (local) | Desktop          | For machines with a good enough GPU       |
     | TTS       | Kokoro-82M           | Desktop (CPU)    | Fast, natural, no server                  |
     | TTS (alt) | Qwen3-TTS (remote)   | LLM Box (CUDA)   | Highest quality; bfloat16, optional       |
     | Vision    | mmproj or Florence-2 | Desktop/Titan    | Planned — screen awareness, not started   |
@@ -63,19 +64,23 @@ S    Somi — Design
     
     Both the brain (LLM) and the voice (TTS) are swappable through config, not code.
     
-    1. LLM backend — local vs cloud API
+    1. LLM backend — three-way
     
-    Same OpenAI-compatible client for both; only the base URL / key change.
-    
-    
-    SOMI_LLM_BACKEND=local     # llama-server on the LLM Box (default)
-    SOMI_LLM_BACKEND=api       # any OpenAI-compatible cloud API
+    Same OpenAI-compatible client for all three; only the base URL / key change.
     
     
-    - local → SOMI_LLM_BASE_URL=http://<llm-box>:8080/v1, no key
-    - api   → SOMI_LLM_BASE_URL=https://api.deepseek.com/v1, `SOMI_LLM_API_KEY=***
+    SOMI_LLM_BACKEND=local      # llama-server on the LLM Box over LAN (default)
+    SOMI_LLM_BACKEND=api        # any OpenAI-compatible cloud API
+    SOMI_LLM_BACKEND=desktop    # llama-server on this same machine (good local GPU)
+    
+    
+    - local   → SOMI_LLM_BASE_URL=http://<llm-box>:8080/v1, no key
+    - api     → SOMI_LLM_BASE_URL=https://api.deepseek.com/v1, `SOMI_LLM_API_KEY=***
+    - desktop → SOMI_LLM_BASE_URL=http://localhost:8080/v1, no key
     
     The client code is identical; a factory (get_llm_client()) picks the base URL.
+    All three accept the same messages list, which is what makes the RAG layer
+    (see below) backend-agnostic.
     
     2. TTS backend — kokoro vs remote
     
@@ -101,7 +106,7 @@ S    Somi — Design
     
     | Variable          | Purpose                               | Default                               |
     |-------------------|---------------------------------------|---------------------------------------|
-    | SOMI_LLM_BACKEND  | local or api                          | local                                 |
+    | SOMI_LLM_BACKEND  | local / api / desktop                 | local                                 |
     | SOMI_LLM_BASE_URL | OpenAI-compatible endpoint            | http://<llm-box>:8080/v1              |
     | SOMI_LLM_API_KEY  | Cloud API key (only when backend=api) | —                                     |
     | SOMI_LLM_MODEL    | Model name sent to the endpoint       | (server default)                      |
@@ -122,8 +127,8 @@ S    Somi — Design
       Box. Served over the LAN by llama-server (systemd) rather than loaded into the
       desktop process.
     - OpenAI-compatible HTTP everywhere — llama-server exposes /v1/chat/completions,
-      which means the LLM client is identical whether the brain is local or a cloud API.
-      This is what makes the local/api toggle trivial.
+      which means the LLM client is identical whether the brain is local, desktop, or a
+      cloud API. This is what makes the toggle trivial and the RAG layer backend-agnostic.
     - Kokoro-82M for TTS (default) — 82M-parameter ONNX model running on the
       desktop CPU, faster than real-time, voice quality far above Piper. Replaced
       Qwen3-TTS as the default: Qwen3-TTS on the Titan (bf16 emulated on Turing)
@@ -145,12 +150,16 @@ S    Somi — Design
     - [x] TTS (tts/ — kokoro default + remote fallback)
     - [x] Orchestrator (main.py — full loop with sanitize step)
     - [ ] Conversation memory (multi-turn context in llm.py)
+    - [ ] Three-way LLM backend (desktop option)
+    - [ ] RAG layer (retrieval + injection)
     - [ ] Custom "hey somi" wake word
     - [ ] Settings GUI (config form — PySide6)
     - [ ] Vision (screen awareness)
+    - [ ] Sentry mode (post-vision)
+    - [ ] .somi file format (post-vision/GUI)
     
     GUI Vision (brainstorm)
-
+    
     Voice-first stays the identity. The GUI is bolt-on usefulness, not a takeover —
     Somi speaks and listens first; the visual layer surfaces state and adds a few
     things that are genuinely easier with a screen.
@@ -199,3 +208,51 @@ S    Somi — Design
     - Toolkit: PySide6 assumed (Python-native, matches the sounddevice audio stack),
       but confirmed only when the widget prototype runs.
     - Is the circle a widget or window? Deferred until the click-through test.
+    
+    RAG (brainstorm)
+    
+    Retrieval-augmented generation so Somi can answer from your own documents,
+    notes, and code. One retrieval layer serves all three LLM backends, because all
+    three are OpenAI-compatible and accept the same messages list.
+    
+    - Retrieval is local: embeddings + a vector store on the desktop.
+    - Injection is identical regardless of backend: prepend the top-k retrieved
+      chunks to the messages list before calling chat().
+    - No server-side RAG needed — the desktop retrieves and injects before sending,
+      whether the backend is api, local, or desktop.
+    
+        query -> embed -> vector search -> inject top-k -> chat(messages)
+    
+    Near-term: build the retrieval + injection layer. Deferred: fancy chunking,
+    hybrid search, re-ranking, server-side RAG for large corpora.
+    
+    Sentry Mode (brainstorm, post-vision)
+    
+    Unattended-space monitoring. A hybrid detector -> captioner pipeline:
+    
+    - YOLO watches the video stream cheaply (object detection). Fast but "dumb" —
+      it flags "person detected" without describing what's happening.
+    - Florence-2 provides the detailed description, triggered only when YOLO sees
+      something of interest.
+    
+        camera -> YOLO (fast, always-on) -> [interesting event] -> Florence-2 -> log/alert
+    
+    - Compatible with PTZ webcams (e.g. Insta360) that can pan to look around.
+      Note: PTZ control is a camera-integration concern, separate from the vision
+      pipeline.
+    - Reality check: YOLO at 60fps is optimistic on the 9600X CPU (~15-30fps);
+      60fps needs a GPU (the Titan over LAN, or a future card).
+    - Privacy: monitoring a shared space (roommates) needs clear consent surfaced
+      in the UI, not just the code.
+    
+    .somi File Format (brainstorm, post-vision/GUI)
+    
+    A portable, encrypted container for sharing Somi's output (context, files, voice
+    notes) between Somi instances.
+    
+    - Compression: zstd (easy).
+    - Encryption: the real work is KEY EXCHANGE, not the cipher. Options:
+      - shared passphrase -> symmetric (simplest; chacha20-poly1305 or age)
+      - per-recipient keys -> asymmetric/PKI (proper, but a real project)
+    - Framing: it's "encrypted-at-rest, shareable bundle of context + files", not
+      merely "a file format". The cipher is ~10% of the work; key exchange is 90%.
