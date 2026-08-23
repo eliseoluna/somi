@@ -1,6 +1,6 @@
-Somi configuration template.
-Copy to ~/.config/somi/config.toml and edit. All values optional -
-anything missing falls back to the built-in default in settings.py
+# Somi configuration template.
+# Copy to ~/.config/somi/config.toml and edit. All values optional -
+# anything missing falls back to the built-in default in settings.py
 
 [llm]
 backend = "local"        # local | api | desktop

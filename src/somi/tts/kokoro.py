@@ -15,7 +15,7 @@ def _load() -> Kokoro:
     if _model is None:
         _model = Kokoro(
             settings.get("tts", "kokoro_model"),
-            settings.get("tts", "kokoro_voice"),
+            settings.get("tts", "kokoro_voices"),
         )
     return _model
 

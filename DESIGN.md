@@ -32,16 +32,19 @@
     Runtime Loop
     
     
-    init()                              # load wake word, STT, TTS models; build LLM client
     loop:
         wait_for_wake_word()            # SLEEP  — openWakeWord blocks until wake word
         audio = record_until_silence()  # LISTEN — capture with VAD endpoint detection
         text = stt(audio)               # THINK  — faster-whisper, local CPU
-        response = llm(text)            # THINK  — local Titan OR cloud API (toggle)
+        response = llm(text)            # THINK  — local/desktop/cloud (toggle)
         response = sanitize(response)   # THINK  — strip emoji/symbols so TTS won't crash
         speech = tts(response)          # THINK  — Kokoro (default) OR remote Qwen3-TTS
         play(speech)                    # SPEAK  — sounddevice playback
     
+    
+    Models load lazily on first use (whisper on first transcribe, Kokoro on first
+    synthesize), so idle Somi holds only the tiny wake-word model — near-zero
+    resource footprint for the future on/off switch.
     
     Interruption ("barge-in") — the user starts talking while Somi is speaking — is a
     later concern. v0.1 is a blocking loop; asyncio comes when interruption matters.
@@ -55,44 +58,44 @@
     | STT       | faster-whisper       | Desktop          | CTranslate2 backend, fast on CPU, no GPU  |
     | LLM       | llama-server (HTTP)  | LLM Box          | GPU that fits the LLM of choice           |
     | LLM (alt) | cloud API            | —                | DeepSeek/OpenAI/etc. via same HTTP client |
-    | LLM (alt) | llama-server (local) | Desktop          | For machines with a good enough GPU       |
+    | LLM (alt) | llama-server (local) | Desktop          | LM Studio / Vulkan, or NVIDIA GPU         |
     | TTS       | Kokoro-82M           | Desktop (CPU)    | Fast, natural, no server                  |
     | TTS (alt) | Qwen3-TTS (remote)   | LLM Box (CUDA)   | Highest quality; bfloat16, optional       |
     | Vision    | mmproj or Florence-2 | Desktop/Titan    | Planned — screen awareness, not started   |
     
-    The Two Toggles
+    Config & Settings
     
-    Both the brain (LLM) and the voice (TTS) are swappable through config, not code.
+    Config lives in ~/.config/somi/config.toml (XDG), loaded by settings.py with
+    three-layer precedence:
     
-    1. LLM backend — three-way
+        env var (SOMI_<SECTION>_<KEY>)  >  config.toml  >  built-in default
+    
+    The file is machine-specific and stays out of git (see config.example.toml for
+    the documented template). SOMI_CONFIG overrides the file location.
+    
+    LLM backend — three-way
     
     Same OpenAI-compatible client for all three; only the base URL / key change.
     
+        backend = "local"      # llama-server on the LLM Box over LAN (default)
+        backend = "api"        # any OpenAI-compatible cloud API
+        backend = "desktop"    # llama-server / LM Studio on this machine
     
-    SOMI_LLM_BACKEND=local      # llama-server on the LLM Box over LAN (default)
-    SOMI_LLM_BACKEND=api        # any OpenAI-compatible cloud API
-    SOMI_LLM_BACKEND=desktop    # llama-server on this same machine (good local GPU)
-    
-    
-    - local   → SOMI_LLM_BASE_URL=http://<llm-box>:8080/v1, no key
-    - api     → SOMI_LLM_BASE_URL=https://api.deepseek.com/v1, `SOMI_LLM_API_KEY=***
-    - desktop → SOMI_LLM_BASE_URL=http://localhost:8080/v1, no key
+    - local   → base_url = http://<llm-box>:8080/v1, no key
+    - api     → base_url = https://api.deepseek.com/v1, api_key = ***
+    - desktop → base_url = http://localhost:1234/v1 (LM Studio), no key
     
     The client code is identical; a factory (get_llm_client()) picks the base URL.
     All three accept the same messages list, which is what makes the RAG layer
     (see below) backend-agnostic.
     
-    2. TTS backend — kokoro vs remote
+    TTS backend — kokoro vs remote
     
-    One interface, two backends, mirroring the LLM pattern.
-    
-    
-    SOMI_TTS_BACKEND=kokoro     # Kokoro-82M on desktop CPU (default)
-    SOMI_TTS_BACKEND=remote     # HTTP call to Qwen3-TTS server on the LLM Box
-    
+        backend = "kokoro"     # Kokoro-82M on desktop CPU (default)
+        backend = "remote"     # HTTP call to Qwen3-TTS server on the LLM Box
     
     - kokoro → local ONNX model, no server, fast, natural
-    - remote → SOMI_TTS_URL=http://<llm-box>:8081/v1/audio/speech
+    - remote → url = http://<llm-box>:8081/v1/audio/speech
     
     
     somi/tts/
@@ -102,19 +105,12 @@
       remote.py       # HTTP client to LLM Box TTS server
     
     
-    Config Surface (env vars)
+    Conversation Memory
     
-    | Variable          | Purpose                               | Default                               |
-    |-------------------|---------------------------------------|---------------------------------------|
-    | SOMI_LLM_BACKEND  | local / api / desktop                 | local                                 |
-    | SOMI_LLM_BASE_URL | OpenAI-compatible endpoint            | http://<llm-box>:8080/v1              |
-    | SOMI_LLM_API_KEY  | Cloud API key (only when backend=api) | —                                     |
-    | SOMI_LLM_MODEL    | Model name sent to the endpoint       | (server default)                      |
-    | SOMI_TTS_BACKEND  | kokoro or remote                      | kokoro                                |
-    | SOMI_TTS_URL      | TTS server endpoint (backend=remote)  | http://<llm-box>:8081/v1/audio/speech |
-    
-    Secrets stay out of git — .env is already ignored. Load with python-dotenv or
-    manual os.getenv.
+    chat() keeps a module-level _history list of {"role", "content"} dicts,
+    capped at MAX_HISTORY_MESSAGES = 10 (~5 exchanges) to keep context small.
+    clear_history() resets it. History stores the raw LLM reply; sanitization stays
+    in main.py so only TTS is affected, not the LLM's context.
     
     Decision Log
     
@@ -126,9 +122,10 @@
     - Qwen3.6-27B (Q4_K_M) for the LLM — the only machine that fits it is the LLM
       Box. Served over the LAN by llama-server (systemd) rather than loaded into the
       desktop process.
-    - OpenAI-compatible HTTP everywhere — llama-server exposes /v1/chat/completions,
-      which means the LLM client is identical whether the brain is local, desktop, or a
-      cloud API. This is what makes the toggle trivial and the RAG layer backend-agnostic.
+    - OpenAI-compatible HTTP everywhere — llama-server and LM Studio both expose
+      /v1/chat/completions, which means the LLM client is identical whether the brain
+      is local, desktop, or a cloud API. This is what makes the toggle trivial and the
+      RAG layer backend-agnostic.
     - Kokoro-82M for TTS (default) — 82M-parameter ONNX model running on the
       desktop CPU, faster than real-time, voice quality far above Piper. Replaced
       Qwen3-TTS as the default: Qwen3-TTS on the Titan (bf16 emulated on Turing)
@@ -139,6 +136,11 @@
       Requires the bfloat16 (not float16) config — float16 overflows on Qwen3-TTS
       (activations exceed fp16's ~65504 max, producing NaN). See server/README.md
       for the full gotchas (Triton removal, Turing caveat).
+    - config.toml + settings.py — moved config out of env-var-only into a TOML
+      file with env-var override, so the future settings GUI is just a form over a
+      file. Also removed hardcoded paths/keys from committed code.
+    - Lazy model loading — whisper and Kokoro load on first use, so idle Somi
+      uses near-zero resources. This is what makes the future on/off switch trivial.
     
     Current Status
     
@@ -146,11 +148,11 @@
     - [x] Wake word detection (wake.py — sounddevice + openWakeWord)
     - [x] Capture with silence detection (VAD)
     - [x] STT (stt.py — faster-whisper)
-    - [x] LLM client (llm.py — local + api toggle)
+    - [x] LLM client (llm.py — three-way backend toggle)
     - [x] TTS (tts/ — kokoro default + remote fallback)
     - [x] Orchestrator (main.py — full loop with sanitize step)
-    - [ ] Conversation memory (multi-turn context in llm.py)
-    - [ ] Three-way LLM backend (desktop option)
+    - [x] Conversation memory (multi-turn context in llm.py)
+    - [x] Three-way LLM backend (desktop option, tested via LM Studio)
     - [ ] RAG layer (retrieval + injection)
     - [ ] Custom "hey somi" wake word
     - [ ] Settings GUI (config form — PySide6)
@@ -182,6 +184,33 @@
       - calendar button
       - settings button
     - When the chat box is open, a file section shows files Somi has created.
+    
+    LLM control (settings screen)
+    
+    The LLM needs an on/off switch, built as a hybrid:
+    
+    - Brain switch: local / api / desktop (writes backend in config)
+    - Server on/off: start/stop the local llama-server (or LM Studio) process
+    - Fallback toggle (independent of on/off): if the local brain is off, either
+      fall back to cloud api automatically, or report "brain offline". User choice,
+      because a voice assistant with no brain is useless.
+    
+    The switch is really two settings: backend (which brain) and fallback_to_api
+    (what to do when the primary is off). GUI writes config.toml, then tells a
+    service manager to start/stop the process.
+    
+    Model manager (settings screen)
+    
+    Paste a HuggingFace link -> auto-use that model:
+    
+    1. Parse link -> repo id
+    2. List files via HF API -> find .gguf files
+    3. Pick a quant (default Q4_K_M, dropdown for advanced)
+    4. Download with progress UI (huggingface_hub)
+    5. Write model + models dir to config
+    6. Restart the server
+    
+    Effort: medium. Bigger than the on/off switch, smaller than vision.
     
     Intent routing (layer 2)
     
@@ -256,3 +285,4 @@
       - per-recipient keys -> asymmetric/PKI (proper, but a real project)
     - Framing: it's "encrypted-at-rest, shareable bundle of context + files", not
       merely "a file format". The cipher is ~10% of the work; key exchange is 90%.
+
