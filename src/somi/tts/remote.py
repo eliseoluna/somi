@@ -1,11 +1,11 @@
 """Remote TTS backend - HTTP call to the LLM box's somi-tts server."""
 
-import os
 import httpx
 
+from somi import settings
 
 def synthesize(text: str) -> tuple[bytes, int]:
-    url = os.getenv("SOMI_TTS_URL", "http://10.0.0.215:8081/v1/audio/speech")
+    url = settings.get("tts", "url")
     resp = httpx.post(
         url,
         json={"input": text, "voice": "Serena", "language": "English"},

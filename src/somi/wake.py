@@ -4,11 +4,13 @@ import numpy as np
 import sounddevice as sd
 from openwakeword.model import Model
 
+from somi import settings
+
 FRAME = 1280        # 80ms at 16kHz - openWakeWord's native frame size
 THRESHOLD = 0.5
 
 def listen_for_wake_word(
-        wake_word: str = "hey_jarvis",
+        wake_word: str | None = None,
         threshold: float = THRESHOLD,
 ) -> None:
     """
@@ -16,9 +18,13 @@ def listen_for_wake_word(
 
     Args:
         wake_word: Name of a built-in wake word model (e.g. "hey_jarvis",
-                    "hey_mycroft", "alexa") or path to a custom .tflite/.onnx model
+                    "hey_mycroft", "alexa") or path to a custom .tflite/.onnx model.
+                    Defaults to settings.get("wake", "word").
         threshold: Detection score 0.0 to 1.0, higher = fewer false positives
     """
+    if wake_word is None:
+        wake_word = settings.get("wake", "word")
+
     model = Model(
         wakeword_models=[wake_word],
         inference_framework="onnx",

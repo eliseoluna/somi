@@ -1,10 +1,10 @@
-"""TTS package - local CPU or remote Titan backend."""
+"""TTS package - kokoro CPU or remote Titan backend."""
 
-import os
+from somi import settings
 
 
 def get_tts_backend():
-    backend = os.getenv("SOMI_TTS_BACKEND", "kokoro")
+    backend = settings.get("tts", "backend")
 
     if backend == "remote":
         from somi.tts import remote

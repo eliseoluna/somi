@@ -5,10 +5,7 @@ import io
 import soundfile as sf
 from kokoro_onnx import Kokoro
 
-MODEL_PATH = "/home/eliseoluna/.config/somi/kokoro/kokoro-v1.0.onnx"
-VOICE_PATH = "/home/eliseoluna/.config/somi/kokoro/voices-v1.0.bin"
-VOICE = "af_heart"
-LANG = "en-us"
+from somi import settings
 
 _model = None
 
@@ -16,13 +13,20 @@ _model = None
 def _load() -> Kokoro:
     global _model
     if _model is None:
-        _model = Kokoro(MODEL_PATH, VOICE_PATH)
+        _model = Kokoro(
+            settings.get("tts", "kokoro_model"),
+            settings.get("tts", "kokoro_voice"),
+        )
     return _model
-
 
 def synthesize(text: str) -> tuple[bytes, int]:
     kokoro = _load()
-    samples, sample_rate = kokoro.create(text, voice=VOICE, speed=1.0, lang=LANG)
+    samples, sample_rate= kokoro.create(
+        text,
+        voice=settings.get("tts", "voice"),
+        speed=1.0,
+        lang=settings.get("tts", "lang"),
+    )
     buf = io.BytesIO()
     sf.write(buf, samples, sample_rate, format="WAV")
     return buf.getvalue(), sample_rate
