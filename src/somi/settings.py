@@ -1,4 +1,4 @@
-"""Config loading model for Somi - TOML file with env-var override.
+"""Config loading module for Somi - TOML file with env-var override.
 
 Precedence (highest first):
     1. env var SOMI_<SECTION>_<KEY>     (e.g SOMI_LLM_BACKEND)
@@ -54,7 +54,7 @@ def load() -> dict:
     for section, values in toml.items():
         if section in data:
             data[section].update(values)
-        return data
+    return data
 
 def get(section: str, key: str) -> str:
     """Resolve one setting: env var > config.toml > default."""

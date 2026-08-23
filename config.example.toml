@@ -3,7 +3,7 @@ Copy to ~/.config/somi/config.toml and edit. All values optional -
 anything missing falls back to the built-in default in settings.py
 
 [llm]
-backend = "loca"        # local | api | desktop
+backend = "local"        # local | api | desktop
 base_url = "http://10.0.0.215:8080/v1"
 api_key = ""            # only for backend = "api"
 model = "Qwen3.6-27B-Q4_K_M.gguf"
@@ -12,7 +12,7 @@ model = "Qwen3.6-27B-Q4_K_M.gguf"
 backend = "kokoro"      # kokoro | remote
 url = "http://10.0.0.215:8081/v1/audio/speech"
 kokoro_model = "~/.config/somi/kokoro/kokoro-v1.0.onnx"
-kokoro_voices = "~/config/somi/kokoro/voices-v1.0.bin"
+kokoro_voices = "~/.config/somi/kokoro/voices-v1.0.bin"
 voice = "af_heart"
 lang = "en-us"
 

@@ -42,7 +42,7 @@ def chat(text: str, client: OpenAI | None = None) -> str:
             {"role": "user", "content": text},
         ],
     )
-    return response.choice[0].message.content
+    return response.choices[0].message.content
 
 # Test block
 if __name__ == "__main__":
