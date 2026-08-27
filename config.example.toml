@@ -18,3 +18,10 @@ lang = "en-us"
 
 [wake]
 word = "hey_jarvis"
+
+[service]
+# Used by service.py to start/stop a local llama-server for the "desktop"
+# backend. Leave model_path empty if you use LM Studio instead.
+llama_server_bin = "llama-server"
+model_path = ""
+context = 8192

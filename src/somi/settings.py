@@ -32,6 +32,11 @@ DEFAULTS = {
     "wake": {
         "word": "hey_jarvis",
     },
+    "service": {
+        "llama_server_bin": "llama-server",
+        "model_path": "",
+        "context": "8192",
+    }
 }
 
 def _config_path() -> Path:
