@@ -15,6 +15,7 @@ dependencies = [
     "accelerate>=0.30",
     "soundfile>=0.12",
     "kokoro-onnx>=0.5.0",
+    "scipy>=1.10",
 ]
 
 [project.scripts]
