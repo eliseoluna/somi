@@ -44,7 +44,7 @@
     
     Models load lazily on first use (whisper on first transcribe, Kokoro on first
     synthesize), so idle Somi holds only the tiny wake-word model — near-zero
-    resource footprint for the future on/off switch.
+    resource footprint for the on/off switch.
     
     Interruption ("barge-in") — the user starts talking while Somi is speaking — is a
     later concern. v0.1 is a blocking loop; asyncio comes when interruption matters.
@@ -112,11 +112,19 @@
     clear_history() resets it. History stores the raw LLM reply; sanitization stays
     in main.py so only TTS is affected, not the LLM's context.
     
+    Service Lifecycle
+    
+    service.py manages a local llama-server process for the desktop backend —
+    start/stop/restart/is_running, with a pidfile so start and stop work across
+    separate processes. Remote services (Titan's llama-server, somi-tts) are systemd
+    units on another box and are out of scope. This is the muscle behind the future
+    GUI on/off switch and model manager.
+    
     Decision Log
     
     - openWakeWord for wake word — local, low-latency, MIT, no account and no API
       key (replaced Porcupine, which was key-gated and closed-source). Built-in wake
-      word (hey_jarvis) for now; a custom "hey somi" model is the planned polish.
+      word (hey_jarvis) for now; a custom "hey somi" model is next.
     - faster-whisper for STT — CTranslate2 backend is much faster on CPU than
       stock Whisper; no GPU required, so it stays on the desktop.
     - Qwen3.6-27B (Q4_K_M) for the LLM — the only machine that fits it is the LLM
@@ -137,10 +145,13 @@
       (activations exceed fp16's ~65504 max, producing NaN). See server/README.md
       for the full gotchas (Triton removal, Turing caveat).
     - config.toml + settings.py — moved config out of env-var-only into a TOML
-      file with env-var override, so the future settings GUI is just a form over a
-      file. Also removed hardcoded paths/keys from committed code.
+      file with env-var override, so the settings GUI is just a form over a file.
+      Also removed hardcoded paths/keys from committed code.
     - Lazy model loading — whisper and Kokoro load on first use, so idle Somi
-      uses near-zero resources. This is what makes the future on/off switch trivial.
+      uses near-zero resources. This is what makes the on/off switch trivial.
+    - Resample-to-device-rate playback — Kokoro outputs 24kHz but devices run
+      44.1/48kHz; resampling once up front (scipy) instead of letting PipeWire do it
+      live under load eliminated choppy/stretched audio when other sources play.
     
     Current Status
     
@@ -153,90 +164,115 @@
     - [x] Orchestrator (main.py — full loop with sanitize step)
     - [x] Conversation memory (multi-turn context in llm.py)
     - [x] Three-way LLM backend (desktop option, tested via LM Studio)
+    - [x] Service lifecycle manager (service.py)
+    - [ ] Custom "hey somi" wake word  ← NEXT
+    - [ ] Intent routing (weather + calendar tools)
     - [ ] RAG layer (retrieval + injection)
-    - [ ] Custom "hey somi" wake word
-    - [ ] Settings GUI (config form — PySide6)
+    - [ ] GUI state 3 (normal window: settings, chat, RAG tabs)
+    - [ ] GUI states 1+2 (overlay: circle + popups, layer-shell)
     - [ ] Vision (screen awareness)
     - [ ] Sentry mode (post-vision)
     - [ ] .somi file format (post-vision/GUI)
     
-    GUI Vision (brainstorm)
+    GUI Vision
     
     Voice-first stays the identity. The GUI is bolt-on usefulness, not a takeover —
-    Somi speaks and listens first; the visual layer surfaces state and adds a few
-    things that are genuinely easier with a screen.
+    Somi speaks and listens first; the visual layer surfaces state and adds the
+    things that are easier with a screen.
     
-    Three distinct layers, kept separate on purpose:
+    The Three States
     
-    1. Widget shell — the window itself. Effort: medium.
-    2. Intent routing — weather/calendar skip the LLM. Effort: small but smart.
-    3. Agent layer — chat box, file generation, sandbox. Effort: large + security.
     
-    The Widget (layer 1)
+    State 1 — circle (resting)      State 2 — popup (glance)      State 3 — full window
     
-    - Circular, resizable in fixed increments via +/- buttons (browser-zoom style).
-    - Always-on-top, moveable, but click-through is NOT required — a normal window
-      is acceptable if input-passthrough fights Wayland.
-    - Visual states mirror the pipeline: listening / thinking / speaking / looking.
-      (Already exists as prints in main.py; it's just a state machine + colors.)
-    - Radial toggles extend out from the circle (bottom-left, bottom-right, etc.):
-      - a ~720px vertical chat box (type instead of talk)
-      - calendar button
-      - settings button
-    - When the chat box is open, a file section shows files Somi has created.
     
-    LLM control (settings screen)
+    | State | What it is                        | Content                                            |
+    |-------|-----------------------------------|----------------------------------------------------|
+    | 1     | Small circle, always-on-top       | Resize (+/-), expand, weather, calendar, on/off    |
+    | 2     | Small popup docked next to circle | Response text, or weather/calendar glance          |
+    | 3     | Normal window                     | Settings, chat history, RAG, full weather/calendar |
     
-    The LLM needs an on/off switch, built as a hybrid:
+    Transitions:
     
-    - Brain switch: local / api / desktop (writes backend in config)
-    - Server on/off: start/stop the local llama-server (or LM Studio) process
-    - Fallback toggle (independent of on/off): if the local brain is off, either
-      fall back to cloud api automatically, or report "brain offline". User choice,
-      because a voice assistant with no brain is useless.
+    - 1 -> 2 : triggered by the voice loop (Somi speaks) OR user click (weather/calendar)
+    - 1 -> 3 : user clicks expand (the ONLY way into state 3)
+    - 3 -> 1 : user collapses, or auto after idle
+    - 2 -> 1 : Somi finishes speaking, or user dismisses
     
-    The switch is really two settings: backend (which brain) and fallback_to_api
-    (what to do when the primary is off). GUI writes config.toml, then tells a
-    service manager to start/stop the process.
+    Glance vs Full
     
-    Model manager (settings screen)
+    Every feature gets two renderings — the organizing principle of the whole GUI:
     
-    Paste a HuggingFace link -> auto-use that model:
+    - Glance (state 2): at-a-glance, minimal interaction
+    - Full (state 3): the tab where you actually do things
     
-    1. Parse link -> repo id
-    2. List files via HF API -> find .gguf files
-    3. Pick a quant (default Q4_K_M, dropdown for advanced)
-    4. Download with progress UI (huggingface_hub)
-    5. Write model + models dir to config
-    6. Restart the server
+    Weather: glance = current + today; full = change location, extended forecast.
+    Calendar: glance = today/next events; full = create/edit events + reminders.
+    Response: glance = the popup; full = chat history tab.
     
-    Effort: medium. Bigger than the on/off switch, smaller than vision.
+    Two kinds of state-2 popups (different plumbing)
     
-    Intent routing (layer 2)
+    - Automatic — Somi's response. Triggered by the voice loop (external event).
+      Rides the publish/subscribe IPC seam.
+    - Clicked — weather/calendar. Triggered by the user inside the GUI.
+      Pure GUI-internal state, no IPC needed.
     
-    Weather and calendar lookups should NOT hit the LLM — they're deterministic
-    fetches, and generating a sentence about the forecast is wasteful. Flow:
+    Same visual language, different event sources. Don't conflate them in code.
     
-        STT → intent classifier → [weather tool | calendar tool | LLM]
+    Two windows under the hood
     
-    Slot extraction ("tomorrow in Dothan") may still need a cheap local parse, but
-    the expensive generation is skipped. Google Calendar sync is the calendar source
-    (OAuth + token handling — real integration work, deferred).
+    States 1+2 are a floating overlay; state 3 is a normal window. Qt can't live-swap
+    FramelessWindowHint + WindowStaysOnTopHint for a normal window, so it's two
+    top-level windows, never visible at once:
     
-    Agent layer (layer 3)
+    - Overlay window: frameless, always-on-top -> circle (state 1) + popups (state 2)
+    - Main window: normal, resizable -> everything in state 3
     
-    Letting the LLM write files turns Somi from assistant into agent. "Contained"
-    means a sandbox: a dedicated directory, a permission model, and ideally an
-    approve-before-write step. Ship the chat box WITHOUT file generation first; add
-    the sandbox as its own sub-project.
+    Expanding hides the overlay and shows the main window; collapsing reverses it.
     
-    Open questions / deferred
+    Wayland reality
     
-    - Wayland click-through: not set in stone. If input-passthrough is painful, a
-      plain always-on-top window is fine. Test early with a PySide6 prototype.
-    - Toolkit: PySide6 assumed (Python-native, matches the sounddevice audio stack),
-      but confirmed only when the widget prototype runs.
-    - Is the circle a widget or window? Deferred until the click-through test.
+    State 3 is easy (normal window). States 1+2 are hard: a frameless always-on-top
+    circle that stays put in a corner needs the layer-shell protocol (what dunst and
+    waybar use). Build order is therefore the reverse of visual order:
+    
+    1. State 3 (normal window) — the functional heart, easy, forces the IPC plumbing
+    2. States 1+2 (overlay) — layer-shell / corner positioning, cosmetics on top
+    
+    Button set (state 1)
+    
+    - Resize (+/-) — browser-zoom style, fixed increments
+    - Expand — the only path into state 3 (settings, chat, RAG all live there)
+    - Weather — glance popup
+    - Calendar — glance popup
+    - On/off — the hybrid toggle (below), duplicated in settings
+    
+    On/off switch (hybrid)
+    
+    Present on the circle AND in settings. Two independent settings:
+    
+    - Brain switch: local / api / desktop
+    - Server on/off + fallback: if the local brain is off, either fall back to
+      cloud api automatically, or report "brain offline" — user choice.
+    
+    Built on service.py (start/stop the local server) + the backend config.
+    
+    Dependency: intent routing comes first
+    
+    Weather and calendar glance views are NOT cosmetic — they render data from the
+    weather tool + Google Calendar sync. So the tools (layer 2) must exist before
+    the glance views. Realistic build order:
+    
+    1. Response popup (automatic state 2) — can build now, just renders LLM text
+    2. State 3 skeleton — normal window, tabs, no live data yet
+    3. Weather + calendar tools (intent routing)
+    4. Glance views + circle — render the tools; the hard Wayland work, last
+    
+    Process split
+    
+    The voice loop and the GUI stay separate processes. The loop publishes state
+    messages ({"state": "speaking", "text": "..."}); the GUI subscribes and
+    renders. Somi runs fine headless (no GUI) or with the notifier attached.
     
     RAG (brainstorm)
     
