@@ -7,7 +7,7 @@ import sounddevice as sd
 SAMPLE_RATE = 16000     # matches Porcupine and faster-whisper
 FRAME = 512             # 32ms per frame at 16kHz
 
-def record_until_silence(threshold_db=-40.0, silence_sec=0.7, max_sec=20.0):
+def record_until_silence(threshold_db=-40.0, silence_sec=1.3, max_sec=20.0):
     silent = 0
     has_speech = False
     silence_limit = int(silence_sec / (FRAME / SAMPLE_RATE))
