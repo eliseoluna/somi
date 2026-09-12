@@ -30,6 +30,8 @@ def listen_for_wake_word(
         inference_framework="onnx",
     )
 
+    prediction_key = next(iter(model.models))
+
     stream = sd.RawInputStream(
         channels=1,
         samplerate=16000,
@@ -45,7 +47,7 @@ def listen_for_wake_word(
             frame = np.frombuffer(data, dtype=np.int16)
 
             prediction = model.predict(frame)
-            score = prediction[wake_word]
+            score = prediction[prediction_key]
 
             if score >= threshold:
                 print(f"Wake word detected! (score {score:.2f})")

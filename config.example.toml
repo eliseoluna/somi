@@ -17,7 +17,7 @@ voice = "af_heart"
 lang = "en-us"
 
 [wake]
-word = "hey_jarvis"
+word = "~/.config/somi/wake/hey_somi.onnx"
 
 [service]
 # Used by service.py to start/stop a local llama-server for the "desktop"

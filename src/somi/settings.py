@@ -30,7 +30,7 @@ DEFAULTS = {
         "lang": "en-us",
     },
     "wake": {
-        "word": "hey_jarvis",
+        "word": "~/.config/somi/wake/hey_somi.onnx",
     },
     "service": {
         "llama_server_bin": "llama-server",

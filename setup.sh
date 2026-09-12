@@ -97,25 +97,23 @@ echo "✓ Python environment is ready."
 echo
 echo "-> Checking wake-word model..."
 
-uv run python <<'PY'
-from pathlib import Path
-import openwakeword
+mkdir -p "$WAKE_DIR"
 
-model_dir = (
-    Path(openwakeword.__file__).resolve().parent
-    / "resources"
-    / "models"
-)
+WAKE_MODEL_SOURCE="$SCRIPT_DIR/assets/wake/hey_somi.onnx"
+WAKE_DATA_SOURCE="$SCRIPT_DIR/assets/wake/hey_somi.onnx.data"
 
-model_path = model_dir / "hey_jarvis_v0.1.onnx"
+WAKE_MODEL_DEST="$WAKE_DIR/hey_somi.onnx"
+WAKE_MODEL_DEST="WAKE_DIR/hey_somi.onnx.data"
 
-if model_path.exists():
-    print("✓ Wake-word model already installed.")
-else:
-    print("Downloading Hey Jarvis wake-word model...")
-    openwakeword.utils.download_model(["hey_jarvis_v0.1"])
-    print("✓ Wake-word model downloaded.")
-PY
+if [[ ! -f "$WAKE_MODEL_SOURCE" || ! -f "$WAKE_DATA_SOURCE" ]]; then
+    echo "ERROR: Somi wake-word model files are missing from the repository."
+    exit 1
+fi
+
+cp "$WAKE_MODEL_SOURCE" "$WAKE_MODEL_DEST"
+cp "$WAKE_MODEL_SOURCE" "$WAKE_DATA_DEST"
+
+echo "✓ Somi wake-word model installed."
 
 
 # -----------------------------------------------------------------------
@@ -173,13 +171,26 @@ echo "-> Checking SOMI configuration..."
 mkdir -p "$SOMI_CONFIG_DIR"
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
+
     cp "$SCRIPT_DIR/config.example.toml" "$CONFIG_FILE"
 
     echo "✓ Created:"
     echo "  $CONFIG_FILE"
 else
     echo "✓ Existing config found."
-    echo "  Leaving it unchanged."
+    
+    # Migrate the old default wake word to Somi.
+    # Custom wake-word settings are left untouched.
+    if grep -q '^word = "hey_jarvis"$' "$CONFIG_FILE"; then
+        sed -i \
+            's|^word = "hey_jarvis"$|word = "~/.config/somi/wake/hey_somi.onnx"|' \
+            "$CONFIG_FILE"
+
+        echo "✓ Updated default wake word to Hey Somi."
+    else
+        echo "  Leaving existing wake-word configuration unchanged."
+    fi
+    
 fi
 
 
