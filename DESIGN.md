@@ -123,8 +123,14 @@
     Decision Log
     
     - openWakeWord for wake word — local, low-latency, MIT, no account and no API
-      key (replaced Porcupine, which was key-gated and closed-source). Built-in wake
-      word (hey_jarvis) for now; a custom "hey somi" model is next.
+      key (replaced Porcupine, which was key-gated and closed-source). Custom "hey
+      somi" model trained locally via the openWakeWord pipeline (Piper synthetic
+      clips + augmentation), committed to assets/wake/ and installed by setup.sh.
+    - Custom wake-word model quality - the committed hey_somi model is a SMOKE-TEST
+      build (n_samples 2000, empty negative backgrounds) trained to validate the
+      pipeline, not final quality, It works but false-fires more than a full build.
+      Retrain at larger scale (n_samples 10000+, real background/RIR data, more steps)
+      when convenient and replace assets/wake/hey_somi.onnx{,.data}.
     - faster-whisper for STT — CTranslate2 backend is much faster on CPU than
       stock Whisper; no GPU required, so it stays on the desktop.
     - Qwen3.6-27B (Q4_K_M) for the LLM — the only machine that fits it is the LLM
@@ -165,7 +171,7 @@
     - [x] Conversation memory (multi-turn context in llm.py)
     - [x] Three-way LLM backend (desktop option, tested via LM Studio)
     - [x] Service lifecycle manager (service.py)
-    - [ ] Custom "hey somi" wake word  ← NEXT
+    - [x] Custom "hey somi" wake word (smoke-test model; retrain for quality)
     - [ ] Intent routing (weather + calendar tools)
     - [ ] RAG layer (retrieval + injection)
     - [ ] GUI state 3 (normal window: settings, chat, RAG tabs)
@@ -173,6 +179,8 @@
     - [ ] Vision (screen awareness)
     - [ ] Sentry mode (post-vision)
     - [ ] .somi file format (post-vision/GUI)
+    Pending polish:
+    - Retrain the hey_somi wake word at full scale (see Decision Log note)
     
     GUI Vision
     
