@@ -173,10 +173,10 @@ echo "-> Checking SOMI configuration..."
 mkdir -p "$SOMI_CONFIG_DIR"
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
-    cp "$SCRIPT_DIR/config.toml.example" "$CONFIG_FILE"
+    cp "$SCRIPT_DIR/config.example.toml" "$CONFIG_FILE"
 
     echo "✓ Created:"
-    echo "  $ONFIG_FILE"
+    echo "  $CONFIG_FILE"
 else
     echo "✓ Existing config found."
     echo "  Leaving it unchanged."
