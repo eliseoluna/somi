@@ -91,7 +91,7 @@ echo "✓ Python environment is ready."
 
 
 # -----------------------------------------------------------------------
-# 4. Download OpenWakeWord model
+# 4. Copy the bundled wake-word model in assets
 # -----------------------------------------------------------------------
 
 echo
@@ -103,7 +103,7 @@ WAKE_MODEL_SOURCE="$SCRIPT_DIR/assets/wake/hey_somi.onnx"
 WAKE_DATA_SOURCE="$SCRIPT_DIR/assets/wake/hey_somi.onnx.data"
 
 WAKE_MODEL_DEST="$WAKE_DIR/hey_somi.onnx"
-WAKE_MODEL_DEST="WAKE_DIR/hey_somi.onnx.data"
+WAKE_DATA_DEST="$WAKE_DIR/hey_somi.onnx.data"
 
 if [[ ! -f "$WAKE_MODEL_SOURCE" || ! -f "$WAKE_DATA_SOURCE" ]]; then
     echo "ERROR: Somi wake-word model files are missing from the repository."
@@ -111,7 +111,7 @@ if [[ ! -f "$WAKE_MODEL_SOURCE" || ! -f "$WAKE_DATA_SOURCE" ]]; then
 fi
 
 cp "$WAKE_MODEL_SOURCE" "$WAKE_MODEL_DEST"
-cp "$WAKE_MODEL_SOURCE" "$WAKE_DATA_DEST"
+cp "$WAKE_DATA_SOURCE" "$WAKE_DATA_DEST"
 
 echo "✓ Somi wake-word model installed."
 
